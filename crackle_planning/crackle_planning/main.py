@@ -60,6 +60,7 @@ class CrackleFSM:
         return task
 
     def interrupt_current_tasks(self):
+        print("Interrupted")
         for t in self._running_threads:
             t.cancel()
         self._running_threads = []
@@ -90,7 +91,7 @@ class CrackleFSM:
 
         async def listening_thread(name: str, stop_event: asyncio.Event):
             while self._state == CrackleState.IDLE:
-                audio = np.frombuffer(self._mic_stream.read(CHUNK), dtype=np.int16)
+                audio = np.frombuffer(self._mic_stream.read(CHUNK, exception_on_overflow=False), dtype=np.int16)
                 prediction = self._owwModel.predict(audio)
                 print(prediction["hey_jarvis"])
                 output_string_header = """
@@ -104,11 +105,11 @@ class CrackleFSM:
 
                             output_string_header += f"""{mdl}{" "*(16 - len(mdl))}   | {curr_score[0:5]} | {"--"+" "*20 if scores[-1] <= 0.5 else "Wakeword Detected!"}
                             """
-                # if prediction:
-                #     print("Command received, interrupting scanning...")
-                #     self._state = CrackleState.LISTENING
-                #     stop_event.set()
-                #     break
+                if prediction["hey_jarvis"] > 0.9:
+                    print("Command received, interrupting scanning...")
+                    self._state = CrackleState.LISTENING
+                    stop_event.set()
+                    break
 
         stop_event_scanning = asyncio.Event()
         scan_task = asyncio.create_task(scanning_thread("Scanner", stop_event_scanning))
